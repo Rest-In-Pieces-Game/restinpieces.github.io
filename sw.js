@@ -1,5 +1,5 @@
 // Rest in Pieces – Offline-Cache (Netz zuerst, damit Updates sofort ankommen)
-const C='rip-v1';
+const C='rip-v2';
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png']).catch(()=>{})))});
 self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));
 self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;
