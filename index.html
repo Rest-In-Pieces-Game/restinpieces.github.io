@@ -142,6 +142,10 @@ svg.i{flex-shrink:0;width:1em;height:1em;vertical-align:-.12em;fill:none;stroke:
 .setrow input[type=range]{width:220px;accent-color:#e0233c}.setrow .chips{margin:0}
 .btn:focus-visible,.chap:focus-visible,.lv:focus-visible,button:focus-visible{outline:2px solid #ff3b52;outline-offset:3px}
 #nextBtn{position:relative;overflow:hidden}#nextBtn::after{content:'';position:absolute;left:0;bottom:0;height:3px;width:calc(var(--auto,0)*100%);background:rgba(255,255,255,.75)}
+.mpw{gap:12px;align-items:center;text-align:center}.mpbox{gap:12px;align-items:center;width:min(440px,90vw)}
+.mpjoin{gap:8px;justify-content:center}#mpCode{width:150px;text-align:center;font:800 22px/1 inherit;letter-spacing:.3em;text-transform:uppercase;background:rgba(0,0,0,.45);color:#efe7dc;border:1px solid rgba(239,231,220,.25);border-radius:10px;padding:10px}
+.mpcode{font-weight:800;font-size:44px;letter-spacing:.3em;color:#efe7dc;text-shadow:0 0 18px rgba(224,35,60,.6)}.mpscore{font-weight:800;font-size:40px;letter-spacing:.1em;color:#efe7dc}
+#mpChaps{justify-content:center;flex-wrap:wrap;gap:6px}
 </style>
 </head>
 <body>
@@ -170,7 +174,7 @@ svg.i{flex-shrink:0;width:1em;height:1em;vertical-align:-.12em;fill:none;stroke:
    <button class="btn primary" data-act="play"><svg class="i"><use href="#i-play"/></svg>Spielen</button>
    <div class="row"><button class="btn sm" data-act="daily" id="dailyBtn"><svg class="i"><use href="#i-skull"/></svg>Tageslevel</button><button class="btn sm" data-act="ach"><svg class="i"><use href="#i-star"/></svg>Erfolge</button></div>
    <div class="row"><button class="btn sm" data-act="ward"><svg class="i"><use href="#i-skull"/></svg>Garderobe</button><button class="btn sm" data-act="settings"><svg class="i"><use href="#i-grid"/></svg>Optionen</button></div>
-   <button class="btn sm" data-act="save"><svg class="i"><use href="#i-grid"/></svg>Spielstand sichern</button>
+   <div class="row"><button class="btn sm" data-act="mp"><svg class="i"><use href="#i-play"/></svg>Mehrspieler</button><button class="btn sm" data-act="save"><svg class="i"><use href="#i-grid"/></svg>Spielstand</button></div>
    <button class="btn sm" data-act="install" id="installBtn" style="display:none"><svg class="i"><use href="#i-play"/></svg>Als App installieren</button>
    <p class="note" id="totalDeaths" style="margin:10px 0 0"></p>
    <p class="note" id="menuHint" style="margin:4px 0 0;opacity:.7"></p>
@@ -242,6 +246,28 @@ svg.i{flex-shrink:0;width:1em;height:1em;vertical-align:-.12em;fill:none;stroke:
  <div class="wrap col savew"><textarea id="saveTxt" placeholder="Hier erscheint dein Code – oder füge einen Code zum Laden ein." spellcheck="false"></textarea>
  <div class="row"><button class="btn sm primary" data-act="exp">Code kopieren</button><button class="btn sm" data-act="dl">Als Datei</button><button class="btn sm" data-act="imp">Code laden</button><button class="btn sm" data-act="impFile">Datei laden</button></div>
  <p class="note" id="saveMsg"></p><input type="file" id="saveFile" accept=".txt,text/plain" hidden></div>
+</div>
+<div class="screen" id="scrMP">
+ <div class="top"><button class="btn icon" data-act="mpLeave"><svg class="i"><use href="#i-back"/></svg></button><h2 class="h"><small>Online gegeneinander</small>Mehrspieler</h2></div>
+ <div class="wrap col mpw">
+  <div id="mpStart" class="col mpbox">
+   <p class="note">Rennt gleichzeitig durch dasselbe Level. Wer zuerst an der Tür ist, gewinnt die Runde.</p>
+   <button class="btn primary" data-act="mpHost">Raum erstellen</button>
+   <div class="row mpjoin"><input id="mpCode" maxlength="5" placeholder="CODE" autocomplete="off" spellcheck="false"><button class="btn sm" data-act="mpJoin">Beitreten</button></div>
+  </div>
+  <div id="mpWait" class="col mpbox" style="display:none">
+   <p class="note">Dein Raum-Code</p><div id="mpCodeShow" class="mpcode">-----</div>
+   <div class="row"><button class="btn sm" data-act="mpShare">Code teilen</button></div>
+   <p class="note" id="mpWaitTxt">Warte auf Mitspieler …</p>
+  </div>
+  <div id="mpLobby" class="col mpbox" style="display:none">
+   <div id="mpScore" class="mpscore">0 : 0</div>
+   <p class="note" id="mpLobbyTxt"></p>
+   <div class="chips" id="mpChaps"></div>
+   <button class="btn primary" data-act="mpGo" id="mpGoBtn">Runde starten</button>
+  </div>
+  <p class="note" id="mpMsg" style="color:#ff6b7d"></p>
+ </div>
 </div>
 <div class="screen" id="scrSet">
  <div class="top"><button class="btn icon" data-act="menu"><svg class="i"><use href="#i-back"/></svg></button><h2 class="h"><small>Rest in Pieces</small>Optionen</h2></div>
@@ -932,7 +958,7 @@ const DAILY=[{"n":"Tageslevel","m":[".................#########################.
 <script>
 (function(){
 const VW=960,VH=448;
-const VERSION='2.6';
+const VERSION='2.7';
 const FONT='"Avenir Next Condensed","Roboto Condensed",sans-serif-condensed,"Arial Narrow","Helvetica Neue",Arial,sans-serif';
 const $=id=>document.getElementById(id);
 const cv=$('cv'),ctx=cv.getContext('2d');
@@ -1914,14 +1940,15 @@ function handleEvents(){
  game.events.length=0;
 }
 function stepGame(dt){
+ if(MP.on&&MP.cd>0){MP.cd-=dt;readInput();const c=Math.ceil(MP.cd);if(c!==MP.lastCd){MP.lastCd=c;c>0?Snd.click():Snd.jump()}return}
  if(game.state==='play'){
-  const inp=readInput();const vyb=Math.abs(game.p.vy);game.update(dt,inp);
+  const inp=readInput();const vyb=Math.abs(game.p.vy);game.update(dt,inp);if(MP.on)mpTick();
   if(save.ward.fx&&game.state==='play')fxSpawn(fx.parts,game.p.x+11,game.p.y+17,save.ward.fx,0);lastVy=Math.max(vyb,Math.abs(game.p.vy));
   const p=game.p;if(p.grounded&&Math.abs(p.vx)>1){const ph0=Math.floor(anim.phase/Math.PI);anim.phase+=dt*Math.abs(p.vx)*.045;const ph1=Math.floor(anim.phase/Math.PI);if(ph1!==ph0)Snd.step(ph1%2)}
   if(((recTick++)&1)===0&&game.state!=='won')recPush();
   handleEvents();
- }else if(game.state==='dead'){readInput();deadT-=dt;if(deadT<=0){const dd=game.deaths;if(curVars.length>1){let n;do{n=Math.floor(Math.random()*curVars.length)}while(n===curVar);curVar=n;game=new Game(curVars[curVar]);game.deaths=dd}else game.respawn();layerSig='';layerGame=null;cam.snap=false;cam.feet=null}}
- else if(game.state==='won'){winT-=dt;if(winT<=0&&state==='play'){state='finishing';finishLevel()}}
+ }else if(game.state==='dead'){readInput();deadT-=dt;if(deadT<=0){const dd=game.deaths;if(curVars.length>1&&!MP.on){let n;do{n=Math.floor(Math.random()*curVars.length)}while(n===curVar);curVar=n;game=new Game(curVars[curVar]);game.deaths=dd}else game.respawn();layerSig='';layerGame=null;cam.snap=false;cam.feet=null}}
+ else if(game.state==='won'){if(MP.on){mpLocalWin();winT-=dt;if(winT<=0&&state==='play'){state='finishing';mpRoundEnd()}return}winT-=dt;if(winT<=0&&state==='play'){state='finishing';finishLevel()}}
 }
 
 /* ---------- Render ---------- */
@@ -1972,6 +1999,7 @@ function render(t){
  };
  lit();
  drawGibs(ctx);
+ if(MP.on&&MP.opp&&!MP.opp.d&&MP.inRound)drawOpp(ctx,t);
  if(g.ghost&&g.ghost.on)drawGhostChaser(ctx,g,t);
  if(state==='replay')drawGhosts(ctx,t);
  else if(g.state!=='dead'&&!(g.state==='won'&&winT<.45))drawFigure(ctx,g.p,g.grav,t);
@@ -1995,7 +2023,7 @@ function render(t){
  ctx.textAlign='center';ctx.font='800 26px '+FONT;ctx.fillStyle='#efe7dc';
  if(state==='replay'){ctx.font='800 22px '+FONT;drawSpaced2(ctx,'WIEDERHOLUNG',vw/2,hy,3);ctx.font='600 13px '+FONT;ctx.fillStyle='rgba(239,231,220,.6)';ctx.fillText(replay.list.length+' VERSUCHE · TIPPEN ZUM ÜBERSPRINGEN',vw/2,hy+22)}
  else if(speed){drawTimer(ctx,speed.total.toFixed(2),vw/2,hy);ctx.font='600 12px '+FONT;ctx.fillStyle='rgba(239,231,220,.6)';ctx.fillText('SPEEDRUN · LEVEL '+g.time.toFixed(2),vw/2,hy+20)}
- else{drawTimer(ctx,g.time.toFixed(2),vw/2,hy);const gt=goldTime();if(gt!=null&&state==='play'){ctx.font='700 11px '+FONT;const ok=g.time<=gt;ctx.fillStyle=ok?'rgba(255,210,58,.85)':'rgba(239,231,220,.35)';drawSpaced2(ctx,'GOLD '+gt.toFixed(1),vw/2,hy+21,1.5)}}
+ else{drawTimer(ctx,g.time.toFixed(2),vw/2,hy);const gt=MP.on?null:goldTime();if(MP.on&&state==='play'){ctx.font='700 12px '+FONT;ctx.fillStyle='#6ad8ff';drawSpaced2(ctx,'DU '+MP.score[0]+' : '+MP.score[1]+' GEGNER'+(MP.opp?' · ☠ '+(MP.opp.k||0):''),vw/2,hy+21,1.5)}if(gt!=null&&state==='play'){ctx.font='700 11px '+FONT;const ok=g.time<=gt;ctx.fillStyle=ok?'rgba(255,210,58,.85)':'rgba(239,231,220,.35)';drawSpaced2(ctx,'GOLD '+gt.toFixed(1),vw/2,hy+21,1.5)}}
  const rx=vw-safe.r-66;const dshow=state==='replay'?attempts.filter(a=>a.type==='die').length:g.deaths;
  ctx.textAlign='right';ctx.font='800 20px '+FONT;ctx.fillStyle='#efe7dc';ctx.fillText(String(dshow),rx,hy+1);
  const dw=ctx.measureText(String(dshow)).width;drawSkull(ctx,rx-dw-14,hy,8);
@@ -2003,6 +2031,8 @@ function render(t){
  if(g.invert){ctx.fillStyle='#f2c46b';ctx.fillText('⇄',ix,hy);ix-=28}
  if(g.grav<0){ctx.fillStyle=TH.edge;ctx.fillText('⇅',ix,hy);ix-=28}
  if(g.turbo>1){ctx.fillStyle='#ff8a00';ctx.fillText('»',ix,hy)}
+ if(MP.on&&MP.cd>0&&state==='play'){ctx.textAlign='center';ctx.font='800 '+Math.round(Math.min(90,vw/8))+'px '+FONT;ctx.fillStyle='#efe7dc';ctx.fillText(String(Math.ceil(MP.cd)),vw/2,vh*.42);ctx.font='700 13px '+FONT;ctx.fillStyle='#6ad8ff';drawSpaced2(ctx,'RUNDE '+MP.round,vw/2,vh*.42+56,3)}
+ if(MP.on&&MP.flash&&state==='play'){MP.flash.t-=1/60;if(MP.flash.t<=0)MP.flash=null;else{ctx.textAlign='center';ctx.globalAlpha=Math.min(1,MP.flash.t*2);ctx.font='800 26px '+FONT;ctx.fillStyle=MP.flash.c;ctx.fillText(MP.flash.s,vw/2,vh*.3);ctx.globalAlpha=1}}
  if(fx.intro&&state==='play'){const I=fx.intro;I.t-=1/60;if(I.t<=0)fx.intro=null;else{const al=Math.min(1,I.t*1.5,(3.4-I.t)*4);ctx.globalAlpha=al;ctx.textAlign='center';
   ctx.font='700 12px '+FONT;ctx.fillStyle=TH.edge;drawSpaced2(ctx,'NEUE FALLE',vw/2,safe.t+vh*.30,4);
   ctx.font='800 '+Math.round(Math.min(40,vw/20))+'px '+FONT;ctx.fillStyle='#efe7dc';drawSpaced2(ctx,I.a.toUpperCase(),vw/2,safe.t+vh*.30+32,2);
@@ -2471,6 +2501,13 @@ document.addEventListener('click',e=>{
   case 'share':shareLast();break;
   case 'shareBil':shareBil(+$('bilNext').dataset.ch);break;
   case 'install':{if(installEv){installEv.prompt();installEv.userChoice.finally(()=>{installEv=null;b.style.display='none'})}break}
+  case 'mp':mpOpen();break;
+  case 'mpHost':mpHost();break;
+  case 'mpJoin':mpJoin($('mpCode').value);break;
+  case 'mpShare':{const txt='💀 Rest in Pieces – spiel gegen mich! Raum-Code: '+MP.code+(location.protocol.startsWith('http')?'\n'+location.href.split('?')[0]:'');if(navigator.share)navigator.share({text:txt}).catch(()=>{});else{try{navigator.clipboard.writeText(txt);showToast('Mehrspieler','Code kopiert',MP.code)}catch(e){}}break}
+  case 'mpGo':mpGo();break;
+  case 'mpLeave':mpLeave();break;
+  case 'mpBack':mpLobby();break;
   case 'next':{speed=null;const n=chap(cur.ch).levels.length;if(cur.lv<n)startLevel(cur.ch,cur.lv+1);else openBilanz(cur.ch);break}
   case 'bilNext':{const c=+b.dataset.ch;if(chap(c+1))openLevels(c+1);else openChapters();break}
   case 'ward':openWard();break;
@@ -2488,12 +2525,85 @@ $('verLbl').textContent='Version '+VERSION;if(!DAILY.length)$('dailyBtn').style.
 $('saveFile').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>doImport(String(r.result));r.readAsText(f);e.target.value=''});
 resize();requestAnimationFrame(frame);
 openMenu();
-})();
 /* ---------- Offline + Installation (Desktop & Android) ---------- */
 try{if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{})}catch(e){}
 let installEv=null;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEv=e;const b=$('installBtn');if(b)b.style.display=''});
 window.addEventListener('appinstalled',()=>{installEv=null;const b=$('installBtn');if(b)b.style.display='none'});
+/* ---------- Mehrspieler: direkte Verbindung per WebRTC (PeerJS) ---------- */
+const MP={peer:null,conn:null,host:false,code:'',on:false,score:[0,0],opp:null,draw:null,round:0,ch:1,inRound:false,cd:0,lastCd:-1,myWin:null,oppWin:null,ended:false,tick:0,flash:null};
+const MPA='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function loadPeer(){return new Promise((res,rej)=>{if(window.Peer)return res();const s=document.createElement('script');s.src='https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';s.onload=()=>res();s.onerror=()=>rej(new Error('PeerJS konnte nicht geladen werden. Bist du online?'));document.head.appendChild(s)})}
+function mpView(v){for(const id of ['mpStart','mpWait','mpLobby'])$(id).style.display=id===v?'':'none';$('mpMsg').textContent=''}
+function mpOpen(){state='menu';game=null;show('scrMP');if(MP.on)mpLobby();else mpView('mpStart')}
+function mpErr(m){$('mpMsg').textContent=m}
+async function mpHost(){
+ try{await loadPeer()}catch(e){mpErr(e.message);return}
+ mpClose(true);MP.host=true;MP.code='';for(let i=0;i<5;i++)MP.code+=MPA[Math.random()*MPA.length|0];
+ mpView('mpWait');$('mpCodeShow').textContent=MP.code;$('mpWaitTxt').textContent='Verbinde mit dem Vermittlungsserver …';
+ MP.peer=new Peer('rip-'+MP.code);
+ MP.peer.on('open',()=>{$('mpWaitTxt').textContent='Warte auf Mitspieler … Gib ihm den Code.'});
+ MP.peer.on('connection',c=>{if(MP.conn){c.close();return}mpAttach(c)});
+ MP.peer.on('error',e=>{if(e.type==='unavailable-id'){mpHost();return}mpErr('Fehler: '+(e.type||e.message))});
+}
+async function mpJoin(code){
+ code=(code||'').toUpperCase().replace(/[^A-Z0-9]/g,'');if(code.length!==5){mpErr('Der Code hat 5 Zeichen.');return}
+ try{await loadPeer()}catch(e){mpErr(e.message);return}
+ mpClose(true);MP.host=false;MP.code=code;mpErr('');$('mpMsg').textContent='Verbinde …';
+ MP.peer=new Peer();
+ MP.peer.on('open',()=>{const c=MP.peer.connect('rip-'+code,{serialization:'json',reliable:true});mpAttach(c);setTimeout(()=>{if(!MP.on)mpErr('Keine Verbindung. Code richtig? Beide online?')},9000)});
+ MP.peer.on('error',e=>mpErr(e.type==='peer-unavailable'?'Raum nicht gefunden.':'Fehler: '+(e.type||e.message)));
+}
+function mpAttach(c){
+ MP.conn=c;
+ c.on('open',()=>{MP.on=true;MP.score=[0,0];MP.round=0;mpSend({t:'hi',v:VERSION});Snd.win();mpLobby()});
+ c.on('data',mpData);
+ c.on('close',()=>{if(MP.on){mpClose();showToast('Mehrspieler','Verbindung getrennt','Dein Gegner ist weg.');openMenu()}});
+ c.on('error',()=>{});
+}
+function mpSend(o){try{if(MP.conn&&MP.conn.open)MP.conn.send(o)}catch(e){}}
+function mpClose(keepScreen){const was=MP.on;MP.on=false;MP.inRound=false;MP.opp=null;try{MP.conn&&MP.conn.close()}catch(e){}try{MP.peer&&MP.peer.destroy()}catch(e){}MP.conn=null;MP.peer=null}
+function mpLeave(){if(MP.on)mpSend({t:'bye'});mpClose();openMenu()}
+function mpLobby(){
+ state='menu';game=null;MP.inRound=false;show('scrMP');mpView('mpLobby');
+ $('mpScore').textContent=MP.score[0]+' : '+MP.score[1];
+ const el=$('mpChaps');el.innerHTML='';
+ if(MP.host){$('mpLobbyTxt').textContent=MP.round?'Nächste Runde – wähle ein Kapitel. Das Level wird ausgelost.':'Verbunden! Wähle ein Kapitel. Das Level wird ausgelost.';$('mpGoBtn').style.display='';
+  for(const c of CHAPTERS){const b=document.createElement('button');b.className='chip'+(c.id===MP.ch?' sel':'');b.innerHTML='<span>'+c.id+'</span>';b.style.setProperty('--c',THEMES[c.theme].edge);b.onclick=()=>{MP.ch=c.id;mpLobby()};el.appendChild(b)}}
+ else{$('mpLobbyTxt').textContent='Verbunden! Der Host wählt das nächste Level …';$('mpGoBtn').style.display='none'}
+}
+function mpGo(){if(!MP.host||!MP.on)return;const c=chap(MP.ch);const lv=1+Math.floor(Math.random()*c.levels.length);const d=def(MP.ch,lv);const v=Math.floor(Math.random()*(1+((d&&d.vars)||[]).length));
+ MP.round++;mpSend({t:'start',ch:MP.ch,lv,v,round:MP.round});mpStartRound(MP.ch,lv,v)}
+function mpStartRound(ch,lv,v){
+ startLevel(ch,lv);curVar=Math.min(v,curVars.length-1);game=new Game(curVars[curVar]);WW=game.cols*T;WH=game.rows*T;cam.snap=true;layerSig='';layerGame=null;fx.intro=null;
+ MP.inRound=true;MP.cd=3;MP.lastCd=-1;MP.myWin=null;MP.oppWin=null;MP.ended=false;MP.opp=null;MP.draw=null;MP.flash=null;
+}
+function mpTick(){if(((MP.tick++)%5)!==0)return;const p=game.p;mpSend({t:'p',x:Math.round(p.x),y:Math.round(p.y),f:p.face,g:p.grounded?1:0,vx:Math.round(p.vx),vy:Math.round(p.vy),gr:game.grav,d:game.state==='dead'?1:0,k:game.deaths,tm:+game.time.toFixed(2)})}
+function mpLocalWin(){if(MP.myWin!=null)return;MP.myWin=game.time;mpSend({t:'win',tm:game.time,k:game.deaths});winT=Math.max(winT,1.4)}
+function mpRoundEnd(){
+ if(MP.ended)return;
+ // Rennen entschieden: wer die kleinere Zeit hat (bzw. wer überhaupt angekommen ist)
+ const me=MP.myWin,op=MP.oppWin;let iWin=me!=null&&(op==null||me<=op);
+ MP.ended=true;MP.inRound=false;if(iWin)MP.score[0]++;else MP.score[1]++;
+ showToast('Runde '+MP.round,iWin?'Du gewinnst!':'Gegner gewinnt',(me!=null?'Deine Zeit '+me.toFixed(2)+' s':'Nicht angekommen')+(op!=null?' · Gegner '+op.toFixed(2)+' s':''));
+ if(iWin)Snd.win();else Snd.die();
+ mpLobby();
+}
+function mpData(m){
+ if(!m||!m.t)return;
+ if(m.t==='hi'){if(m.v!==VERSION)showToast('Mehrspieler','Andere Version','Gegner hat '+m.v+', du '+VERSION+'. Bitte beide aktualisieren.')}
+ else if(m.t==='start'&&!MP.host){MP.round=m.round;MP.ch=m.ch;mpStartRound(m.ch,m.lv,m.v)}
+ else if(m.t==='p'){MP.opp=m;if(!MP.draw)MP.draw={x:m.x,y:m.y}}
+ else if(m.t==='win'){MP.oppWin=m.tm;if(MP.inRound&&MP.myWin==null){MP.flash={s:'GEGNER IST IM ZIEL!',c:'#ff3b52',t:1.6};setTimeout(()=>{if(MP.inRound&&MP.myWin==null&&!MP.ended){state='finishing';mpRoundEnd()}},1600)}}
+ else if(m.t==='bye'){mpClose();showToast('Mehrspieler','Gegner hat verlassen','Die Verbindung ist beendet.');openMenu()}
+}
+function drawOpp(c,t){
+ const o=MP.opp,d=MP.draw;d.x+=(o.x-d.x)*.35;d.y+=(o.y-d.y)*.35;if(Math.abs(o.x-d.x)>160||Math.abs(o.y-d.y)>160){d.x=o.x;d.y=o.y}
+ c.save();c.globalAlpha=.85;drawFigure(c,{x:d.x,y:d.y,w:22,h:34,face:o.f,grounded:!!o.g,vx:o.vx,vy:o.vy},o.gr||1,t,{color:'#8fe3ff',item:null,scarf:'#1e7bff'});c.restore();
+ c.save();c.font='700 10px '+FONT;c.textAlign='center';c.fillStyle='#8fe3ff';c.shadowColor='#000';c.shadowBlur=4;c.fillText('GEGNER',d.x+11,(o.gr||1)>0?d.y-10:d.y+50);c.restore();
+}
+
+})();
 
 </script>
 </body>
